@@ -1,0 +1,51 @@
+import lingo/pegcode/driver;
+
+ArExpr ::= ArSum, ArMult, ArInt;
+ArSum(left : ArExpr, right : ArExpr);
+ArMult(left : ArExpr, right : ArExpr);
+ArInt(var : int);
+
+
+s2ar(str : string) -> ArExpr {
+    e_gr = "#include arith.lingo";
+    parsic(
+        compilePegGrammar(e_gr),
+        str,
+        SemanticActions(setTree(defaultPegActions.t, "createArInt", \s -> ArInt(s2i(s[0]))))
+    )
+}
+
+backToReality(exp : ArExpr) ->string{
+    switch (exp : ArExpr) {
+        ArSum(left,right): {
+            param : [string] = [backToReality(left), backToReality(right)];
+            strGlue(["(", ")"], strGlue(param, " + "));
+        } 
+        ArMult(left,right) : {
+            param : [string] = [backToReality(left), backToReality(right)];
+            strGlue(["(", ")"], strGlue(param, " * "));
+        } 
+        ArInt(var) : i2s(var); 
+    }
+
+}
+
+exe(exp : ArExpr) ->int{
+    switch (exp : ArExpr) {
+        ArSum(left,right):exe(left) + exe(right);
+        ArMult(left,right) : exe(left) * exe(right);
+        ArInt(var) : var; 
+    }
+}
+
+main(){
+    startString = "((2 + 8) * 2)";
+    println("startString  : " + startString + "\n");
+    
+    println("finish String : " + backToReality( s2ar(startString)));
+
+    println("\n answer : " + i2s(exe( s2ar(startString))));
+
+    quit(0);   
+}
+

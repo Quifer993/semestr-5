@@ -1,0 +1,148 @@
+import nemo/nemo_ast;
+
+export {
+	typecheckNmProgram(prog : NmProg, onError : (string) -> void) -> void;
+	nmProgTypedecls(prog : NmProg, onError : (string) -> void) -> Tree<string, NmType>;
+	evalNmType(expr : NmExp, typedecls : Tree<string, NmType>, onError : (string) -> void) -> Maybe<NmType>;
+}
+
+nmProgTypedecls(prog : NmProg, onError : (string) -> void) -> Tree<string, NmType> {
+	fold(prog.decls, makeTree(), \acc, decl -> {
+		if (containsKeyTree(acc, decl.var)) {
+			onError("duplicate variable declararion: " + decl.var);
+		}
+		setTree(acc, decl.var, decl.type)
+	})
+}
+
+typecheckNmProgram(prog : NmProg, onError : (string) -> void) -> void {
+	typecheckNmStat(prog.body, nmProgTypedecls(prog, onError), onError)
+}
+
+typecheckNmStat(stat : NmStat, typedecls : Tree<string, NmType>, onError : (string) -> void) -> void {
+	switch (stat) {
+		NmAssign(var, val):
+			switch (lookupTree(typedecls, var)) {
+				Some(var_type): {
+					maybeApply(evalNmType(val, typedecls, onError), \val_type ->
+						if (val_type != var_type) { 
+							onError("variable declared " + var + " type " + nmType2s(var_type) + 
+									" differs from the assigned expression type: " + nmType2s(val_type)
+							);
+						}
+					)
+				}
+				None(): onError("variable " + var + " is not declared");
+			}
+		NmTest(op, l, r):
+			maybeApply(evalNmType(l, typedecls, onError), \l_type ->
+				maybeApply(evalNmType(r, typedecls, onError), \r_type -> {
+					if (l_type != NmIntType()) {
+						onError("in comparison " + op + " left side must be of integer type, but is: " + nmType2s(l_type));
+					}
+					if (r_type != NmIntType()) {
+						onError("in comparison " + op + " right side must be of integer type, but is: " + nmType2s(r_type));
+					}
+				})
+			);
+		NmSeq(stats):
+			iter(stats, \s -> typecheckNmStat(s, typedecls, onError));
+		NmChoice(stats):
+			iter(stats, \s -> typecheckNmStat(s, typedecls, onError));
+		NmLoop(body):
+			typecheckNmStat(body, typedecls, onError)
+		NmPrint(e): {
+			evalNmType(e, typedecls, onError);
+			{}
+		}
+	}
+}
+
+evalNmType(expr : NmExp, typedecls : Tree<string, NmType>, onError : (string) -> void) -> Maybe<NmType> {
+	switch (expr) {
+		NmBinOp(op, l, r):
+			maybeBind2(
+				\l_type, r_type -> {
+					if (l_type != NmIntType()) {
+						onError("in binary operation " + op + " left side must be of integer type, but is: " + nmType2s(l_type));
+						None();
+					} else {
+						if (r_type != NmIntType()) {
+							onError("in binary operation " + op + " right side must be of integer type, but is: " + nmType2s(r_type));
+							None();
+						} else {
+							Some(NmIntType());
+						}
+					}
+				}
+			)
+			(evalNmType(l, typedecls, onError), evalNmType(r, typedecls, onError));
+		NmUnOp(op, e):
+			maybeBind(evalNmType(e, typedecls, onError), 
+				\e_type -> {
+					if (e_type != NmIntType()) {
+						onError("in unary operation " + op + " operand must be of integer type, but is: " + nmType2s(e_type));
+						None()
+					} else {
+						Some(NmIntType());
+					}
+				}
+			);
+		NmUpd(arr, ind, upd):
+			maybeBind(evalNmType(upd, typedecls, onError), \upd_type ->
+				maybeBind2(
+					\arr_type, ind_type -> {
+						switch (arr_type) {
+							NmArrType(val_type): {
+								if (ind_type != NmIntType()) {
+									onError("in array update operation index side must be of integer type, but is: " + nmType2s(ind_type));
+									None();
+								} else {
+									if (upd_type == val_type) {
+										Some(NmArrType(val_type));
+									} else {
+										onError("in array update operation update type must coincide with the array value type, but is: " + nmType2s(upd_type));
+										None();
+									}
+								}
+							}
+							default: {
+								onError("in array update operation array side must be of array type, but is: " + nmType2s(arr_type));
+								None();
+							}
+						}
+					}
+				)
+				(evalNmType(arr, typedecls, onError), evalNmType(ind, typedecls, onError))
+			);
+		NmApp(arr, ind):
+			maybeBind2(
+				\arr_type, ind_type -> {
+					switch (arr_type) {
+						NmArrType(val_type): {
+							if (ind_type != NmIntType()) {
+								onError("in array index operation index side must be of integer type, but is: " + nmType2s(ind_type));
+								None();
+							} else {
+								Some(val_type);
+							}
+						}
+						default: {
+							onError("in array index operation array side must be of array type, but is: " + nmType2s(arr_type));
+							None();
+						}
+					}
+				}
+			)
+			(evalNmType(arr, typedecls, onError), evalNmType(ind, typedecls, onError));
+		NmVar(name): {
+			ret = lookupTree(typedecls, name);
+			if (ret == None()) {
+				onError("variable is not declared: " + name);
+			}
+			ret
+		}
+		NmInt(__): Some(NmIntType());
+	}
+}
+

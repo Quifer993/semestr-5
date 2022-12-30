@@ -1,0 +1,29 @@
+import runtime;
+//import loop;
+
+
+MyPair(arg1 : int, arg2 : int);
+
+inds(arr : [int], m : int) -> [MyPair]{
+	retArr : [MyPair] = [];
+	foldi(arr, retArr, \i, arg1, x -> 
+		foldi(arr, \j, arg2, y -> 
+			if(arg1 + arg2 == m) concat(retArr, MyPair(i, j))
+			else concat(retArr, [])
+		)
+	);
+	
+	retArr;
+	foldi(a,[], \i, acc, x -> foldi(a,acc,\j))
+}
+
+main() {
+	m = 5;
+    array = [1,2,3,4,5];
+
+	
+	pairs = inds(array, m);
+	
+
+	//println();
+};

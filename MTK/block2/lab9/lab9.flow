@@ -1,0 +1,224 @@
+import string;
+import lingo/pegcode/driver;
+import runtime;
+import ds/tree;
+import ds/array;
+import math/math;
+Expression ::= Mult, Add, Sub, Div, Var, Neg, Number; 
+
+Add(left : Expression, right : Expression);
+
+Mult(left : Expression, right : Expression);
+
+Sub(left : Expression, right : Expression);
+
+Neg(exp : Expression);
+
+Div(left : Expression, right : Expression);
+
+Var(value : string);
+
+Number(value : int);
+
+//-------------------------------------------------------------------------------------------------------------
+
+Polynom(sum: Tree<PolyDegree, int>);
+PolyDegree(degree: Tree<string, int>);
+RationalFunction(num: Polynom, den: Polynom);
+
+pp2s(e: PolyDegree) -> string { 
+    rtrim2(concatStrings(foldTree(e.degree , [], \k, v, acc -> concat(acc, 
+    if(v == 1){
+        [k + " * "];
+    }else{
+        [k + "^" + i2s(v) + " * "];
+    }
+    ))), " *");
+}
+
+p2s(e: Polynom) -> string { 
+    rtrim2(concatStrings(
+        foldTree(
+            e.sum, [], \k,v,acc -> 
+                concat(acc, concat([if(v == 1) {"";}elseif(v == -1){"-"} else{ if(pp2s(k) != "") {i2s(v) + "*";}else {i2s(v)}}], [pp2s(k) + " + "])))),
+            " +"
+    );
+}
+
+getStrr(str : string)->string{
+        if(getCharCodeAt(str, strlen(str) - 1) == getCharCodeAt("*", 0)){
+            strLeft(str, strlen(str) - 1)
+        }
+        else{
+            str;
+        }
+}
+
+rf2s(rf: RationalFunction) -> string { 
+    if (rf.den ==  Polynom(setTree(makeTree(), PolyDegree(makeTree()), 1))) {
+        p2s(rf.num);
+    } else {
+        s1 = getStrr(p2s(rf.num));
+        s2 = getStrr(p2s(rf.den));
+        concatStrings(["(", s1 ,") / (", s2 ,")"]);
+    }
+}
+
+multPolyDegrees(l: PolyDegree, r: PolyDegree) -> PolyDegree { 
+    PolyDegree(mergeTreeCustom(l.degree, r.degree, \k, lv, rv -> rv + lv));
+}
+
+expr2rf(e: Expression) -> RationalFunction {
+    rf = switch (e) {
+        Add(l,r): sumRationalFunctions(expr2rf(l) , expr2rf(r));
+        Mult(l,r): multRationalFunctions(expr2rf(l), expr2rf(r));
+        Sub(l,r): subRationalFunctions(expr2rf(l), expr2rf(r));
+        Div(l,r): divRationalFunctions(expr2rf(l), expr2rf(r));
+        Neg(expr): minusRationalFunction(expr2rf(expr));
+        Number(v): RationalFunction(
+            Polynom(setTree(makeTree(), PolyDegree(makeTree()), v)),
+            Polynom(setTree(makeTree(), PolyDegree(makeTree()), 1))
+        );
+        Var(name): RationalFunction(
+            Polynom(setTree(makeTree(), PolyDegree(setTreeValues(makeTree(),[Pair(name, 1)])), 1)),
+            Polynom(setTree(makeTree(), PolyDegree(makeTree()), 1))
+        );
+    }
+    rf2 = RationalFunction(filterPolynom(rf.num), filterPolynom(rf.den));
+
+    polyGCD = gcd(coefGCD(rf2.num), coefGCD(rf2.den));
+    rf3 = divRationalFunctionByInt(rf2, polyGCD);
+    numGCD = coefGCD(rf3.num);
+    rf3_num = divPolynomByInt(rf3.num, numGCD);
+    if (rf3_num == rf3.den) {
+        RationalFunction(Polynom(setTree(makeTree(), PolyDegree(makeTree()), numGCD)), Polynom(setTree(makeTree(), PolyDegree(makeTree()), 1)));
+    } else {
+        rf3;
+    }
+}
+
+checkTreee(degreesNew : Tree<PolyDegree, int>, treeKeys : [string], polyDegrees : PolyDegree) -> PolyDegree{
+    koef = switch(lookupTree(degreesNew, polyDegrees)){
+        None() : 0;
+        Some(value) : value;
+    };
+    PolyDegree(fold(treeKeys, makeTree(), \tcc, v->{
+            switch(lookupTree(polyDegrees.degree, v)){
+                None() : setTree(makeTree(), "0", 0);
+                Some(value) : setTree(tcc, v , value);
+            }
+        })
+    );
+}
+
+
+filterPolynom(p: Polynom) -> Polynom {
+    newPolyTree = foldi(getTreeKeys(p.sum), makeTree(), \i, degreesNew, polyDegrees ->{
+        e = lookupTree(p.sum, polyDegrees);
+        val = switch(e){
+            None() : 0;
+            Some(value) : value;
+        }
+        treeKeys = sort(  foldTree(polyDegrees.degree, [], \k,v, arrVar->{
+            switch(find(arrVar, \j -> j == k)){
+                None() : insertArray(arrVar, 0, k);
+                Some(var) : arrVar;
+            }
+        }));
+        pd = PolyDegree(fold(treeKeys, makeTree(), \tcc, k->{
+                        switch(lookupTree(polyDegrees.degree, k)){
+                            None() : setTree(makeTree(), "0", 0);
+                        Some(value) : setTree(tcc, k , value);
+                    }
+                }
+            )
+        );
+        koef = switch(lookupTree(degreesNew, pd)){
+            None() : 0;
+            Some(value) : value;
+        };
+        setTree(degreesNew, 
+            pd,
+            val + koef
+        )
+    });
+
+    Polynom(filterTree(newPolyTree, \k, v -> v != 0));
+}
+
+coefGCD(p: Polynom) -> int {
+    initial = getTreeValues(p.sum)[0];
+    foldTree(p.sum, initial, \k, v, acc -> gcd(acc,v));
+}
+
+divPolynomByInt(p: Polynom, c: int) -> Polynom {
+    Polynom(mapTree(p.sum, \v -> v/c));
+}
+
+divRationalFunctionByInt(rf: RationalFunction, c: int) -> RationalFunction { 
+    RationalFunction(divPolynomByInt(rf.num, c), divPolynomByInt(rf.den, c));
+}
+
+sumRationalFunctions(l: RationalFunction, r: RationalFunction) -> RationalFunction {
+     RationalFunction(sumPolynoms(multPolynoms(l.num, r.den), multPolynoms(r.num, l.den)), multPolynoms(l.den, r.den));
+ }
+
+subRationalFunctions(l: RationalFunction, r: RationalFunction) -> RationalFunction { 
+     RationalFunction(sumPolynoms(multPolynoms(l.num, r.den), minusPolynom(multPolynoms(r.num, l.den))), multPolynoms(l.den, r.den));
+ }
+
+multRationalFunctions(l: RationalFunction, r: RationalFunction) -> RationalFunction {
+     RationalFunction(multPolynoms(l.num, r.num), multPolynoms(l.den, r.den));
+ }
+
+divRationalFunctions(l: RationalFunction, r: RationalFunction) -> RationalFunction {
+     RationalFunction(multPolynoms(l.num, r.den), multPolynoms(l.den, r.num));
+}
+
+minusRationalFunction(rf: RationalFunction) -> RationalFunction {
+     RationalFunction(minusPolynom(rf.num), rf.den);
+}
+
+sumPolynoms(l: Polynom, r: Polynom) {
+    Polynom(mergeTreeCustom(l.sum, r.sum, \k, lv, rv -> lv + rv));
+}
+
+multPolynoms(l: Polynom, r: Polynom) {
+    Polynom(foldTree(l.sum, makeTree(), \lp, lc, acc -> {
+        foldTree(r.sum, acc, \rp, rc, ac -> {
+            pp = multPolyDegrees(lp, rp);
+            switch(lookupTree(ac, pp)) {
+                Some(coef): setTree(ac, pp, coef + (lc * rc));
+                None(): setTree(ac, pp, (lc * rc));
+            }     
+        });
+    }));
+}
+
+minusPolynom(p: Polynom) -> Polynom {
+     Polynom(mapTree(p.sum, \r -> -r));
+}
+
+//----------------------------------------------------------------------------------------------------------------
+
+
+main() {
+    println("\n");
+    expr = "((((a + 1) / (7 * c)) * ((7 + (6 * c)) / x)) / ((3 * (a + 1)) / (x * x)))";
+    // expr = "((((x - 6) / (6 * y)) / (((x * x) - (y * y)) / y)) * (((x * x) + ((2 * (x * y)) + (y * y))) / x))";
+    // expr = "((((9 * (x * x)) - 4) / ((3 * x) + 2)) - (3 * x))";
+    // expr = "(((4 * (a * a)) - 9) * ((1 / ((2 * a) - 3)) - (1 / ((2 * a) + 3))))";
+
+    // expr = "(3/2)";
+    // expr = "((x - y) * (y + x))";
+    // expr = "(((4 * (x*x)) + (3 * x)) + 5)";
+    // expr = "(((2 * x) + (2 * y)) / (4 * y))";
+    // expr = "(((((x * (x*y))/2) + (y/x)) - (((y*x) * x) / 3)) + (3/2))";
+    // expr = "((x*x) + (x *x))";
+    // expr = "y*x/3 + y/x";    //    (((y*x)/3) + (y/x))
+
+    ast = parsic(compilePegGrammar("#include lingo.lingo"), expr, defaultPegActions);
+    println(rf2s(expr2rf(ast)));
+
+    quit(0);
+}

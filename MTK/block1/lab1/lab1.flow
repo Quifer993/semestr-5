@@ -1,0 +1,11 @@
+import runtime;
+
+// export {}
+
+
+main() {
+	myArray : [int] = [1,2,3];
+	myArrayStr = map(myArray, \i -> cast(i : int -> string));
+	println(myArrayStr);
+	strGlue
+};

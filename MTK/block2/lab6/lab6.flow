@@ -1,0 +1,112 @@
+import lingo/pegcode/driver;
+
+ArExpr ::= ArSum, ArMult, ArInt;
+ArSum(left : ArExpr, right : ArExpr);
+ArMult(left : ArExpr, right : ArExpr);
+ArInt(var : int);
+
+
+//Stack
+
+
+s2ar(str : string) -> ArExpr {
+    e_gr = "#include arith.lingo";
+    parsic(
+        compilePegGrammar(e_gr),
+        str,
+        SemanticActions(setTree(defaultPegActions.t, "createArInt", \s -> ArInt(s2i(s[0]))))
+    )
+}
+
+backToRealityRNP2DEF(exp : ArExpr) ->string{
+    switch (exp : ArExpr) {
+        ArSum(left,right): {
+            param : [string] = [backToRealityRNP2DEF(left), backToRealityRNP2DEF(right)];
+            strGlue(["(", ")"], strGlue(param, " + "));
+        } 
+        ArMult(left,right) : {
+            param : [string] = [backToRealityRNP2DEF(left), backToRealityRNP2DEF(right)];
+            strGlue(["(", ")"], strGlue(param, " * "));
+        } 
+        ArInt(var) : i2s(var); 
+    }
+
+}
+
+
+backToReality2RNP(exp : ArExpr) ->string{
+    switch (exp : ArExpr) {
+        ArSum(left,right): {
+            param : [string] = [backToReality2RNP(left), backToReality2RNP(right), "+"];
+            strGlue(param, " ");
+            //strGlue(["(", ")"], strGlue(param, " "));
+        } 
+        ArMult(left,right) : {
+            param : [string] = [backToReality2RNP(left), backToReality2RNP(right), "*"];
+            strGlue(param, " ");
+            //strGlue(["(", ")"], strGlue(param, " "));
+        } 
+        ArInt(var) : i2s(var); 
+    }
+
+}
+
+backToReality(exp : ArExpr) ->string{
+    switch (exp : ArExpr) {
+        ArSum(left,right): {
+            param : [string] = [backToReality(left), backToReality(right)];
+            strGlue(["(", ")"], strGlue(param, " + "));
+        } 
+        ArMult(left,right) : {
+            param : [string] = [backToReality(left), backToReality(right)];
+            strGlue(["(", ")"], strGlue(param, " * "));
+        } 
+        ArInt(var) : i2s(var); 
+    }
+
+}
+
+exe(exp : ArExpr) ->int{
+    switch (exp : ArExpr) {
+        ArSum(left,right):exe(left) + exe(right);
+        ArMult(left,right) : exe(left) * exe(right);
+        ArInt(var) : var; 
+    }
+}
+
+main(){
+    startString = "( (2 + 3) * (5 + 6) )";
+    //startString = "( ( ( 2 8 + ) 2 * ) 2 + )";
+    println("startString  : " + startString + "\n");
+
+    //defString = backToReality(s2ar(startString));
+
+    XY = strSplit( backToReality2RNP( s2ar(startString)), " ");
+    println(XY);
+    
+    num1 : int = s2i(XY[0]);
+    answer = foldi(XY, [0 , 0], \i, num, x ->{
+        if(i > 0){
+            if(x == "*"){
+                [num[0] * num[1] , 0];
+            }
+            else if(x == "+"){
+                [num[0] + num[1] , 0];
+            }
+            else {
+                [num[0] , s2i(XY[i])];
+            }
+        }
+        else{
+            [num1 , 0];
+        }
+    });
+    println("finish String in RNP: " + backToReality2RNP( s2ar(startString)));
+    println("answer is : ");
+    println(answer[0]);
+    
+
+    // println("\n answer on tree : " + i2s(exe( s2ar(startString))));
+
+    quit(0);   
+}

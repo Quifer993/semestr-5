@@ -1,0 +1,21 @@
+var n : int;
+var x : int;
+var y : int;
+var i : int;
+var z : int;
+{
+	n := 3;
+	x := 0;
+	y := 0;
+	z := 0;
+	i := 0;
+	while (i <= n) {
+		y := (y - 2);
+		x := (x * 10);
+		z := (x + y);
+		i := (i + 1);
+		print(x);
+		print(y);
+		print(z)
+	}
+}

@@ -1,0 +1,29 @@
+import nemo/nemo_ast;
+import nemo/nemo_typecheck;
+
+
+main() {
+    proc = \file -> {
+        fileSourseText = getFileContent(file);
+        ast = s2nm(fileSourseText);
+        err_count = ref 0;
+        err = \msg -> {
+            err_count := ^err_count + 1;
+            println(msg);
+        }
+        checkOnError(ast, err);
+        if (^err_count == 0) {
+            println("nemo prog " + file + ":");
+            println(nmProg2s(ast));
+            println("ast");
+            println(ast);
+        }
+        else{
+            println("nemo prog " + file + " have " + i2s(^err_count) + " errors!");
+        }
+    }
+
+    proc("test.nm");
+
+    quit(0);
+}

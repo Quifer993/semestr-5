@@ -1,0 +1,44 @@
+import fs/filesystem;
+import nemo/nemo_ast;
+import nemo/nemo_typecheck;
+import nemo/nemo_transl;
+import nemo/vnemo_run;
+
+main() {
+    proc = \file -> {
+        src = getFileContent(file);
+        prog = s2nm(src);
+        err_count = ref 0;
+        err = \msg -> {
+            err_count := ^err_count + 1;
+            println(msg);
+        }
+        typecheckNmProgram(prog, err);
+        if (^err_count == 0) {
+            println("nemo prog " + file + ":");
+            println(nmProg2s(prog));
+
+            println("prog");
+            println(prog);
+            
+            println("");
+            vprog = nm2vnm(prog);
+            println(vnmProg2s(vprog));
+            // runVnemo(vprog, NmState(makeTree()));
+        }
+        else{
+            println("errors");           
+        }
+    }
+
+    proc("test0.nm");
+
+    println("");
+
+    proc("test1.nm");
+
+    println("");
+
+    proc("test2.nm");
+    quit(0);
+}

@@ -1,0 +1,110 @@
+import ds/tree;
+import ds/set;
+import string;
+import lingo/pegcode/driver;
+
+export {
+	NmProg(
+		decls : [NmDecl],
+		body : NmStat,
+	);
+
+	NmDecl(
+		var : string,
+		type : NmType,
+	);
+
+	NmType ::= NmIntType, NmArrType;
+		NmIntType();
+		NmArrType(type : NmType);
+
+	NmExp ::= NmBinOp, NmUnOp, NmUpd, NmApp, NmVar, NmInt;
+		NmBinOp(op: string, lhs : NmExp, rhs : NmExp);
+		NmUnOp(op: string, e : NmExp);
+		NmUpd(arr : NmExp, ind : NmExp, val : NmExp);
+		NmApp(arr : NmExp, ind : NmExp);
+		NmVar(name : string);
+		NmInt(val : int);
+
+	NmStat ::= NmAssign, NmTest, NmSeq, NmChoice, NmLoop, NmPrint;
+		NmAssign(var : string, val : NmExp);
+		NmTest(cond : string, lhs : NmExp, rhs : NmExp);
+		NmSeq(stats : [NmStat]);
+		NmChoice(stats : [NmStat]);
+		NmLoop(body : NmStat);
+		NmPrint(e : NmExp);
+
+	nmType2s(t : NmType) -> string {
+		switch (t) {
+			NmIntType(): "int";
+			NmArrType(a): "[" + nmType2s(a) + "]";
+		}
+	}
+
+	nmDecl2s(d : NmDecl) -> string {
+		"var " + d.var + " : " + nmType2s(d.type) + ";"
+	}
+
+	nmExp2s(e : NmExp) -> string {
+		switch (e) {
+			NmBinOp(op, l, r): "(" + nmExp2s(l) + " " + op + " " + nmExp2s(r) + ")";
+			NmUnOp(op, e1): op + " " + nmExp2s(e1);
+			NmUpd(a, i, v): "upd(" + nmExp2s(a) + ", " + nmExp2s(i) + ", " + nmExp2s(v) + ")";
+			NmApp(a, i): "app(" + nmExp2s(a) + ", " + nmExp2s(i) + ")";
+			NmVar(name): name;
+			NmInt(val): i2s(val);
+		}
+	}
+
+	nmStat2s(stat : NmStat) -> string {
+		indentStr = \str -> strGlue(map(strSplit(str, "\n"), \s -> "\t" + s), "\n");
+		switch (stat) {
+			NmAssign(var, val): var + " := " + nmExp2s(val);
+			NmTest(c, l, r): "(" + nmExp2s(l) + " " + c + " " + nmExp2s(r) + ")";
+			NmSeq(ss): "{\n" + strGlue(map(ss, \s -> indentStr(nmStat2s(s))), ";\n") + "\n}";
+			NmChoice(ss): "{\n" + strGlue(map(ss, \s -> indentStr(nmStat2s(s))), "U\n") + "\n}";
+			NmLoop(body): "*" + nmStat2s(body);
+			NmPrint(e): "print(" + nmExp2s(e) + ")";
+		}
+	}
+
+	nmProg2s(p : NmProg) -> string {
+		strGlue(map(p.decls, nmDecl2s), "\n") + "\n" +
+		nmStat2s(p.body)
+	}
+
+	s2nm(str : string) -> NmProg {
+		neg_op = \op -> {
+			if (op == "!=") "==" else
+			if (op == "==") "!=" else
+			if (op == "<") ">=" else
+			if (op == ">") "<=" else
+			if (op == "<=") ">" else
+			if (op == ">=") "<" else "";
+		}
+		parsic(nemo_parser, str, 
+			SemanticActions(
+				mergeTree(defaultPegActions.t,
+				pairs2tree([
+					Pair("createSeq", \s -> NmSeq(concat3([s[0]], [s[1]], s[2]))),
+					Pair("createChoice", \s -> NmChoice(concat3([s[0]], [s[1]], s[2]))),
+					Pair("createIfElse", \s -> 
+						NmChoice([
+							NmSeq([NmTest(s[0], s[1], s[2]), s[3]]),
+							NmSeq([NmTest(neg_op(s[0]), s[1], s[2]), s[4]])
+						])
+					),
+					Pair("createWhile", \s -> 
+						NmSeq([
+							NmLoop(NmSeq([NmTest(s[0], s[1], s[2]), s[3]])),
+							NmTest(neg_op(s[0]), s[1], s[2])
+						])
+					),
+				]))
+			)
+		)
+	}
+}
+
+
+nemo_parser = compilePegGrammar("#include lingo/nemo.lingo");

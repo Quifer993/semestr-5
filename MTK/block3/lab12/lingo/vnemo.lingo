@@ -1,0 +1,30 @@
+prog = ws decl*:d stat+:b { VNmProg(:d, :b)};
+decl = "var" ws id:v ":" ws type:t ";" ws { NmDecl(:v, :t) };
+
+type  = int | array;
+int   = "int" ws { NmIntType() };
+array = "[" ws type:t "]" ws { NmArrType(:t) };
+
+stat   = intval ":" ws (print | assign | ifelse);
+print  = "print" ws "(" ws expr:e ")" ws goto:gt { VNmPrint(:e, :gt) };
+assign = id:v ":=" ws expr:e goto:gt ws  { VNmAssign(:v, :e, :gt) };
+ifelse = "if" ws "(" ws expr:e1 cond$s ws expr:e2 ")" ws goto:pos "else" ws goto:neg { VNmIf($s, :e1, :e2, :pos, :neg) };
+goto   = "goto" ws "{" ws intval*:labs "}" ws { :labs };
+
+expr   = const | bin_op | un_op | apply | update | arr | var;
+bin_op = "(" ws expr:l ("+"|"*"|"/"|"-"|"%") $s ws expr:r ")" ws { NmBinOp($s, :l, :r) };
+un_op  = "-" $s ws expr:e { NmUnOp($s, :e) };
+apply  = "app" ws "(" ws expr:a "," ws expr:i ")" ws { NmApp(:a, :i) };
+update = "upd" ws "(" ws expr:a "," ws expr:i "," ws expr:v ")" ws { NmUpd(:a, :i, :v) };
+arr    = "[" ws expr:v1 arrval*:vs "]" ws { createArray(:v1, :vs) };
+arrval = "," ws expr;
+var    = id:v { NmVar(:v) };
+const  = intval:v { NmInt(:v) };
+cond   = "!=" | "==" | "<=" | ">=" | "<" | ">" ;
+
+intval = digit+ $s ws { s2i($s) };
+id     = letter+ $s ws { $s };
+
+letter = 'a'-'z';
+digit  = '0'-'9';
+ws = (' ' | '\t' | '\n' | '\r')*;

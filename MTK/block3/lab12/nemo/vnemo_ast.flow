@@ -1,0 +1,37 @@
+import nemo/nemo_ast;
+
+export {
+
+VNmProg(
+	decls : [NmDecl],
+	body : [VNmStat],
+);
+
+VNmStat ::= VNmAssign, VNmIf, VNmPrint;
+	VNmAssign(var : string, val : NmExp, goto : [int]);
+	VNmIf(cond : string, lhs : NmExp, rhs : NmExp, pos : [int], neg : [int]);
+	VNmPrint(expr : NmExp, goto : [int]);
+
+vnmStat2s(s : VNmStat) -> string {
+	switch (s) {
+		VNmAssign(var, val, goto): var + " := " + nmExp2s(val) + " goto {" + strGlue(map(goto, i2s), " ") + "}";
+		VNmIf(c, l, r, pos, neg): 
+			"if (" + nmExp2s(l) + " " + c + " " + nmExp2s(r) + ") " +
+			"goto {" + strGlue(map(pos, i2s), " ") + "} else " + 
+			"goto {" + strGlue(map(neg, i2s), " ") + "}";
+		VNmPrint(e, goto): "print(" + nmExp2s(e) + ")" + " goto {" + strGlue(map(goto, i2s), " ") + "}";
+	}
+}
+
+vnmProg2s(p : VNmProg) -> string {
+	fold(p.decls, "", \acc, decl -> acc + nmDecl2s(decl) + "\n") + "\n" +
+	foldi(p.body, "", \i, acc, s -> acc + i2s(i) + ": " + vnmStat2s(s) + "\n")
+}
+
+vnemo_parser = compilePegGrammar("#include lingo/vnemo.lingo");
+
+s2vnm(str : string) -> VNmProg {
+	parsic(vnemo_parser, str, defaultPegActions)
+}
+
+}

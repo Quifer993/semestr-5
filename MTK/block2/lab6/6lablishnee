@@ -1,0 +1,165 @@
+import lingo/pegcode/driver;
+
+ArExpr ::= ArSum, ArMult, ArInt;
+ArSum(left : ArExpr, right : ArExpr);
+ArMult(left : ArExpr, right : ArExpr);
+ArInt(var : int);
+
+
+//Stack
+
+
+s2ar(str : string) -> ArExpr {
+    e_gr = "#include arith.lingo";
+    parsic(
+        compilePegGrammar(e_gr),
+        str,
+        SemanticActions(setTree(defaultPegActions.t, "createArInt", \s -> ArInt(s2i(s[0]))))
+    )
+}
+
+backToRealityRNP2DEF(exp : ArExpr) ->string{
+    switch (exp : ArExpr) {
+        ArSum(left,right): {
+            param : [string] = [backToRealityRNP2DEF(left), backToRealityRNP2DEF(right)];
+            strGlue(["(", ")"], strGlue(param, " + "));
+        } 
+        ArMult(left,right) : {
+            param : [string] = [backToRealityRNP2DEF(left), backToRealityRNP2DEF(right)];
+            strGlue(["(", ")"], strGlue(param, " * "));
+        } 
+        ArInt(var) : i2s(var); 
+    }
+
+}
+
+
+backToReality2RNP(exp : ArExpr) ->string{
+    switch (exp : ArExpr) {
+        ArSum(left,right): {
+            param : [string] = [backToReality2RNP(left), backToReality2RNP(right), "+"];
+            strGlue(param, " ");
+            //strGlue(["(", ")"], strGlue(param, " "));
+        } 
+        ArMult(left,right) : {
+            param : [string] = [backToReality2RNP(left), backToReality2RNP(right), "*"];
+            strGlue(param, " ");
+            //strGlue(["(", ")"], strGlue(param, " "));
+        } 
+        ArInt(var) : i2s(var); 
+    }
+
+}
+
+backToReality(exp : ArExpr) ->string{
+    switch (exp : ArExpr) {
+        ArSum(left,right): {
+            param : [string] = [backToReality(left), backToReality(right)];
+            strGlue(["(", ")"], strGlue(param, " + "));
+        } 
+        ArMult(left,right) : {
+            param : [string] = [backToReality(left), backToReality(right)];
+            strGlue(["(", ")"], strGlue(param, " * "));
+        } 
+        ArInt(var) : i2s(var); 
+    }
+
+}
+
+exe(exp : ArExpr) ->int{
+    switch (exp : ArExpr) {
+        ArSum(left,right):exe(left) + exe(right);
+        ArMult(left,right) : exe(left) * exe(right);
+        ArInt(var) : var; 
+    }
+}
+
+main(){
+    startString = "( (0 + 91) * 2 )";
+    //startString = "( ( ( 2 8 + ) 2 * ) 2 + )";
+    
+    defString = backToReality(s2ar(startString));
+
+    println("startString  : " + startString + "\n");
+    
+    println("startString  : " + defString + "\n");
+
+    //stackNumber : [int] = [];
+    stackSign : [int] = [];
+    a : [int] = [];
+
+    //isNum : bool = false;
+    ar = stringFold(defString, a, \i, v -> {
+
+        // if(v >= 48 || v <= 57){
+        //     numeral : int = v - 48;
+             
+        //     if(isNum){
+        //         num = num * 10 + numeral;
+        //         //ref(arr, (^arr)[length(^arr) - 1] + (^arr)[length(^arr) - 2]);
+        //     }
+        //     else{
+        //         isNum = true;
+        //         replace(stackNumber, length(stackNumber), num);
+        //     }
+        // }
+        // else {
+        //     isNum = false;
+        //     [-1];
+        // }
+        // if(v == 42 /* * */|| v == 43/* + */){
+        //     isNum = false;
+        //     stackSign = concat(stackSign, [v]);
+        // }
+        // else {
+        //     isNum = false;
+        // }
+        // println(i);
+        // println(v);
+        concat(i ,[v]);
+    });
+
+    // spl
+
+    println(ar);
+    arrNumberWithSpace = split(ar, \i -> if(i == 32 || (i >= 40 && i <= 43) ) true else false);//40 ( 41 ) 42 * 43 +
+    println(arrNumberWithSpace);
+
+    numberArr = fold(arrNumberWithSpace, [], \acc, x -> if(x != []) {
+        num = fold(x, 0, \number, c -> {
+            number * 10 + (c - 48);
+        });
+        concat(acc, [num]);
+    
+    } 
+    else acc);
+
+    XY = strSplit( backToReality2RNP( s2ar(startString)), " ");
+    println(XY);
+    println("fibnalyuy");
+
+    // arrSignWithSpace = split(ar, \i -> if(i == 32 || (i >=48 && i <= 57) || i == 40 || i == 41 ) true else false);//40 ( 41 ) 42 * 43 +
+    // signArr = fold(arrSignWithSpace, [], \acc, x -> if(x != []) {
+    //     sign = fold(x, str"", \sign, c -> {
+    //         if(c == 42){
+    //             "*";
+    //         }
+    //         else if(c == 43){
+    //             "+";
+    //         }
+    //     })
+    //     concat(acc, [sign])
+    // } 
+    // else acc);
+
+    println(numberArr);
+    // println(signArr);
+
+
+//    println("finish String in Def: " + backToRealityRNP2DEF(s2ar(defString) ));
+   println("finish String in RNP: " + backToReality2RNP( s2ar(startString)));
+
+    println("\n answer on tree : " + i2s(exe( s2ar(startString))));
+
+    quit(0);   
+}

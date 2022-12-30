@@ -1,0 +1,137 @@
+import string;
+import lingo/pegcode/driver;
+import runtime;
+import ds/tree;
+import ds/array;
+import math/math;
+Expression ::= Mult, Add, Sub, Div, Var, Neg, Number; 
+
+ExprChange(expr : Expression);
+
+Add(left : Expression, right : Expression);
+
+Mult(left : Expression, right : Expression);
+
+Sub(left : Expression, right : Expression);
+
+Neg(exp : Expression);
+
+Div(left : Expression, right : Expression);
+
+Var(value : string);
+
+Number(value : int);
+
+str2rule(inputStr : string, outputStr : string)->Pair<Expression,Expression>{
+    Pair(parsic(compilePegGrammar("#include lingo.lingo"), inputStr, defaultPegActions),
+    parsic(compilePegGrammar("#include lingo.lingo"), outputStr, defaultPegActions));
+}
+
+expressionToString(exp: Expression)->string{
+    switch(exp){
+        Add         (l, r) :   "(" 	+ expressionToString(l) + "+" + expressionToString(r) + ")";
+        Sub     	(l, r) :   "(" 	+ expressionToString(l) + "-" + expressionToString(r) + ")";
+        Mult	    (l, r) :   "(" 	+ expressionToString(l) + "*" + expressionToString(r) + ")";
+        Div 		(l, r) :   "(" 	+ expressionToString(l) + "/" + expressionToString(r) + ")";
+        Neg     	(v) :      "(-"   + expressionToString(v) + ")";
+
+        Number		(num) : i2s(num);
+        Var	(v): v;
+    }
+}
+
+simplifyByRules(inputExpr : Expression, rules : [Pair<Expression,Expression>])->Expression{
+    expr = switch(inputExpr){
+        Add         (l, r) :   Add(simplifyByRules(l, rules), simplifyByRules(r, rules));
+        Sub         (l, r) :   Sub(simplifyByRules(l, rules), simplifyByRules(r, rules));
+        Mult         (l, r) :  Mult(simplifyByRules(l, rules), simplifyByRules(r, rules));
+        Div         (l, r) :   Div(simplifyByRules(l, rules), simplifyByRules(r, rules));
+        Neg         (v) :   Neg(simplifyByRules(v, rules));
+        // default : default;
+        Number		(num) : Number(num);
+        Var	(v):    Var(v);
+    };
+    list = fold(rules, makeList(), \listNew, rule ->{
+        if(expr == firstOfPair(rule) && isEmptyList(listNew)){
+            concatList(listNew, makeList1(secondOfPair(rule)))
+        }
+        else{
+            // println(expressionToString(expr) + "  " + expressionToString(firstOfPair(rule)));
+            listNew;
+        }
+    });
+    headList(list, expr);
+}
+
+
+main() {
+    println("\n");
+
+rules = [
+    str2rule("((x - z) + (y + z))", "(x + y)"),
+    str2rule("((x + z) + (y - z))", "(x + y)"),
+    str2rule("(x + x)", "(2 * x)"),
+    str2rule("(- (-x))", "x"),
+    str2rule("(x + y)", "(y + x)"),
+    str2rule("(x * y)", "(y * x)"),
+    str2rule("(x + 0)", "x"),
+    str2rule("(x - 0)", "x"),
+    str2rule("(x - x)", "0"),
+    str2rule("(x + (-x))", "0"),
+    str2rule("((-x) + x)", "0"),
+    str2rule("(x * 0)", "0"),
+    str2rule("(x * 1)", "x"),
+    str2rule("(0 + x)", "x"),
+    str2rule("(0 * x)", "0"),
+    str2rule("(1 * x)", "x"),
+    str2rule("(x * (-1))", "(-x)"),
+    str2rule("((-1) * x)", "(-x)"),
+    str2rule("(x / x)", "1"),
+    str2rule("(0 / x)", "0"),
+    str2rule("((x * z) + (y * z))", "((x + y) * z)"),
+    str2rule("((x * z) + (y * z))", "((x + y) * z)"),
+    str2rule("((x + y) * z)", "((x * z) + (y * z))"),
+    str2rule("((x + y) + z)", "(x + (y + z))"),
+    str2rule("((x * y) * z)", "(x * (y * z))"),
+    str2rule("((x * x) - (y * y))", "((x - y) * (x + y))"),
+
+    str2rule("((x - y) * (x + y))", "((x * x) - (y * y))"),
+    str2rule("((x - y) * (y + x))", "1"),
+    str2rule("((y - x) * (x + y))", "((y * y) - (x * x))"),
+    str2rule("((y - x) * (y + x))", "((y * y) - (x * x))"),
+    str2rule("((x + y) * (x - y))", "((x * x) - (y * y))"),
+    str2rule("((x + y) * (y - x))", "((y * y) - (x * x))"),
+    str2rule("((y + x) * (x - y))", "((x * x) - (y * y))"),
+    str2rule("((y + x) * (y - x))", "((y * y) - (x * x))"),
+
+    str2rule("((x - y) * (x - y))", "(((x * x) + (y * y)) - (2 * (x * y)))"),
+    str2rule("(((x * x) + (y * y)) - (2 * (x * y)))", "((x - y) * (x - y))"),
+    str2rule("((x + y) * (x + y))", "(((x * x) + (y * y)) + (2 * (x * y)))"),
+    str2rule("(((x * x) + (y * y)) + (2 * (x * y)))", "((x + y) * (x + y))"),
+    str2rule("(((x * x) + (y * y)) + (2 * (x * y)))", "((x + y) * (x + y))"),
+    str2rule("((a - b)/(a - b))", "1")
+
+];
+    // *1* create arr of trees of тождеств
+    // *2* create Tree of input string
+    // *3* foldTree InputStringTree and check every node на схожесть
+
+    // expr = "(3/2)";
+    // expr = "(((4 * (x*x)) + (3 * x)) + 5)";
+    expr = "((a - b)/(a - b))";
+    // expr = "(((2 * x) + (2 * y)) / (4 * y))";
+    // expr = "(((((x * (x*y))/2) + (y/x)) - (((y*x) * x) / 3)) + (3/2))";
+    // expr = "((x*x) + (x *x))";
+    // expr = "y*x/3 + y/x";    //    (((y*x)/3) + (y/x))
+
+    ast = parsic(compilePegGrammar("#include lingo.lingo"), expr, defaultPegActions);
+    // println("---rational---");
+    // println(rf2s(expr2rf(ast)));
+    // println(rf2s(expr2rff(ast)));
+
+    println("---tree---");
+    println(expressionToString(ast));
+    println(expressionToString(simplifyByRules(ast, rules)));
+
+    quit(0);
+}

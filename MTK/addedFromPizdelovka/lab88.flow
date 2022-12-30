@@ -1,0 +1,130 @@
+import ds/tree;
+import lingo/pegcode/driver;
+
+Expression ::= Variable, Number, Negative, Divide, Subtract, Multiply, Add;
+
+Variable : (name : string);
+Number : (value : int);
+Negative : (e : Expression);
+Divide : (left : Expression, right : Expression);
+Subtract : (left: Expression, right : Expression);
+Multiply : (left : Expression, right : Expression);
+Add : (left : Expression, right : Expression);
+Rational(numerator: int, denominator: int);
+
+multiply(l: Rational, r: Rational) -> Rational {
+	Rational(l.numerator * r.numerator, l.denominator * r.denominator);
+}
+
+divide(l: Rational, r: Rational) -> Rational {
+	Rational(l.numerator * r.denominator, l.denominator * r.numerator);
+}
+
+add(l: Rational, r: Rational) -> Rational {
+    if (l.denominator == r.denominator) {
+        Rational(l.numerator + r.numerator, l.denominator);
+    } else {
+		Rational(l.numerator * r.denominator + r.numerator * l.denominator, l.denominator * r.denominator);
+    }
+}
+
+subtract(l: Rational, r: Rational) -> Rational {
+    if (l.denominator == r.denominator) {
+        Rational(l.numerator - r.numerator, l.denominator);
+    } else {
+		Rational(l.numerator * r.denominator - r.numerator * l.denominator, l.denominator * r.denominator);
+    }
+}
+
+negative(r: Rational) -> Rational {
+    Rational(-r.numerator, r.denominator);
+}
+
+simplifyRational(r: Rational) -> Rational{
+	commonDivider = gcd(r.numerator, r.denominator);
+	Rational(r.numerator / commonDivider, r.denominator / commonDivider);
+}
+
+r2s(r: Rational) -> string {
+	if(r.denominator == 0){
+		"devision on Null!"
+	}
+	else if (r.denominator == 1) {
+        i2s(r.numerator);
+    } else {
+		// d2s(i2d(r.numerator) / i2d(r.denominator));
+        concatStrings([i2s(r.numerator), "/", i2s(r.denominator)]);
+    }
+}
+
+simplifiedR2Str(r: Rational) -> string {
+	r2s(simplifyRational(r));
+}
+
+initGrammar() {
+	compilePegGrammar("#include ../lab7/lingo.lingo");
+}
+
+calculate(e : Expression, Variables : Tree<string, Rational>) -> Maybe<Rational> {
+	getValue = \l, r, operator -> {
+        switch(calculate(l, Variables)) {
+            Some(left) :  switch(calculate(r, Variables)){
+                Some(right) : operator(left, right);
+                None() : None();
+            }
+            None() : None();
+        }
+    }
+	switch(e) {
+		Number(c) : {
+			Some(Rational(c, 1));
+		}
+		Variable(x) : {
+			switch(lookupTree(Variables, x)) {
+				Some(val): Some(val);
+				None(): None();
+			}
+		}
+		Negative(r) : {
+			switch(calculate(r, Variables)) {
+				Some(expr): Some(negative(expr));
+				None(): None();
+			};
+		}
+		Divide(l, r) : getValue(l, r, \left, right -> Some(divide(left, right)));
+		Subtract(l, r) : getValue(l, r, \left, right -> Some(subtract(left, right)));
+		Multiply(l, r) : getValue(l, r, \left, right -> Some(multiply(left, right)));
+		Add(l, r)      : getValue(l, r, \left, right -> Some(add(left, right)));
+	}
+}
+
+calc(expr : string, variables : Tree<string, Rational>) -> Maybe<Rational> {
+	calculate(parsic(initGrammar(), expr, defaultPegActions), variables);
+}
+
+getVariables() -> Tree<string, Rational> {
+	//ввести здесь параметры (Добавить в дерево )
+	tree : Tree<string, Rational> =setTree(makeTree(), "x", Rational(3, 1));
+	setTree(tree, "y", Rational(2, 1));
+}
+
+// pp2{
+//     // rtrim2(concatStrings(foldTree(e.degree , [], \k, v, acc -> concat(acc, [k + "^" + i2s(v) + " * "]))), " *");
+// }
+
+
+main() {
+	variables = getVariables();
+	expr = "(x * 2)";
+	// expr = "((1/2)+(3/(4-x)))";
+	println(concatStrings(["\t\t", "Input string : ", expr]));
+
+	switch(calc(expr, variables)) {
+		Some(val): {
+			println("\n		result = " + simplifiedR2Str(val)
+					);
+		};
+		None(): println("Wrong calc result");
+	}
+	quit(0);
+}

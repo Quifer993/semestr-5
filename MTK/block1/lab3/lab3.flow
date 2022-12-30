@@ -1,0 +1,69 @@
+import runtime;
+
+
+fibInvAddition(n : int, arr : [int]) -> [int]{
+	// concat(x,[x[n-2] + x[n - 3]]);
+	if(n ==2){
+		arr;
+	}else{
+		arrNew = replace(arr, length(arr), arr[length(arr) - 1] + arr[length(arr) - 2]);
+		fibInvAddition(n-1, arrNew);
+	}
+	
+}
+
+fibInvers(n : int) -> [int]{
+	if(n <= 0) []
+	else if(n == 1) [0]
+	else  if(n == 2) [0, 1]
+	else {
+		arr: [int] = [0, 1];
+		
+		fibInvAddition(n, arr);
+	}	
+}
+
+
+
+
+fib1(n : int) -> [int] {
+	if(n <= 0) []
+	else if(n == 1) [0]
+	else  if(n == 2) [0, 1]
+	else {
+		x : [int] = fib1(n - 1);
+		concat(x,[x[n-2] + x[n - 3]]);
+	}	
+	// if(n > 2){
+	// 	mapi(fibArray, \i, elem -> if(i > 1 && i <= n) replace(fibArray, length(fibArray), fib));
+	// }
+}
+	
+
+
+fibPointerAddition(n : int, arr : ref [int]) ->ref [int]{
+	// concat(x,[x[n-2] + x[n - 3]]);
+	if(n ==2){
+		arr;
+	}else{
+		// println(length(^arr));
+		refArrayPush(arr, (^arr)[length(^arr) - 1] + (^arr)[length(^arr) - 2]);
+		fibPointerAddition(n-1, arr);
+	}
+	
+}
+
+fibPointer(n : int) -> [int]{
+	if(n <= 0) []
+	else if(n == 1) [0]
+	else  if(n == 2) [0, 1]
+	else {
+		pointer = fibPointerAddition(n, ref [0, 1]);
+		^pointer;
+	}	
+}
+
+main() {
+	n = 10;
+	println(fibPointer(n));
+};

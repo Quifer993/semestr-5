@@ -1,0 +1,211 @@
+import lingo/pegcode/driver;
+import math/math;
+import ds/tree;
+import string;
+
+Expression ::= Add, Subtract, Multiply, Divide, Negative, Variable, Number;
+
+Add		    (left : Expression, right : Expression);
+Subtract	(left : Expression, right : Expression);
+Multiply	(left : Expression, right : Expression);
+Divide		(left : Expression, right : Expression);
+
+Negative    (exp: Expression);
+
+Variable	(var : string);
+Number		(num : double);
+
+
+expressionToString(exp: Expression)->string{
+    switch(exp){
+        Add         (l, r) :   "(" 	+ expressionToString(l) + "+" + expressionToString(r) + ")";
+        Subtract	(l, r) :   "(" 	+ expressionToString(l) + "-" + expressionToString(r) + ")";
+        Multiply	(l, r) :   "(" 	+ expressionToString(l) + "*" + expressionToString(r) + ")";
+        Divide		(l, r) :   "(" 	+ expressionToString(l) + "/" + expressionToString(r) + ")";
+        Negative	(v) :      "(-"   + expressionToString(v) + ")";
+
+        Number		(num) : d2s(num);
+        Variable	(v): v;
+    }
+}
+
+calculate(exp : Expression, Variables : Tree<string, double>) -> Maybe<double>{
+    
+
+    getValue = \l, r, operator -> {
+        switch(calculate(l, Variables)) {
+            Some(left) :  switch(calculate(r, Variables)){
+                Some(right) : operator(left, right);
+                None() : None();
+            }
+            None() : None();
+        }
+    }
+
+    div = \left, right -> if(right == 0.0) {
+                        None();
+                    } else {
+                        Some(left / right);
+                    };
+
+    switch(exp){
+        Add(l, r)       : getValue(l, r, \left, right -> Some(left + right));
+        Subtract(l, r)  : getValue(l, r, \left, right -> Some(left - right));
+        Multiply(l, r)  : getValue(l, r, \left, right -> Some(left * right));
+        Divide(l, r)    : getValue(l, r, div);
+
+        Negative(e) : switch(calculate(e, Variables)) {
+            Some(value) : Some(-value);
+            None() : None();
+        }
+
+        Number(num) : Some(num);
+        Variable(name) : lookupTree(Variables, name);
+    }
+}
+
+simplify(exp : Expression) -> Expression{
+    switch (exp) {
+        Add(l, r): {
+            left = simplify(l);
+            right = simplify(r);
+            
+            if(left == Number(0.0) && right == Number(0.0)) {
+                Number(0.0);
+            } else if(left == Number(0.0)) {
+                right;
+            } else if(right == Number(0.0)) {
+                left;
+            } else {
+                switch(right){
+                    Negative(v) : Subtract(left, v);
+                    default : Add(left, right); 
+                }
+            }
+        }
+
+        Subtract(l, r): {
+            left = simplify(l);
+            right = simplify(r);
+
+            if(left == Number(0.0) && right == Number(0.0)) {
+                Number(0.0);
+            } else if(left == Number(0.0)){
+                Negative(right);
+            } else if (right == Number(0.0)) {
+                left;
+            } else{
+                switch(right){
+                    Negative(v) : Add(left, v);
+                    default : Subtract(left, right);
+                }
+            }
+        }
+
+        Multiply(l, r): {
+            left = simplify(l);
+            right = simplify(r);
+
+            if(left == Number(1.0)) {
+                right;
+            } else if(right == Number(1.0)) {
+                left;
+            } else if (left == Number(0.0) || right == Number(0.0)) {
+                Number(0.0);
+            } else if(right == left) {
+                Multiply(right, right);
+            } else{
+                Multiply(left, right);
+            }
+        }
+
+        Divide(l, r): {
+            left = simplify(l);
+            right = simplify(r);
+
+            if(right == Number(0.0)){
+                Divide(left, right);
+            } else if((left == Number(0.0)) && right != Number(0.0)) {
+                Number(0.0);
+            } else if(right == Number(1.0)) {
+                left;
+            } else if(right == left) {
+                Number(1.0);
+            } else {
+                Divide(left, right);
+            }
+        }
+        
+
+        Negative(e):{
+            simplified = simplify(e);
+
+            switch(simplified){
+                Negative(ex) : ex;
+                default : { 
+                if(simplified == Number(0.0)){
+                    Number(0.0);
+                }else{ 
+                    Negative(simplified)};
+                }
+            }
+        }
+
+        default: exp;
+    }
+}
+
+derivative(exp : Expression, var : string) -> Expression {
+    switch(exp) {
+        Add(l, r)       : Add(derivative(l, var),derivative(r, var));
+        Subtract(l, r)  : Subtract(derivative(l, var),derivative(r, var));
+        Multiply(l, r)  : Add(Multiply(derivative(l, var), r), Multiply(derivative(r, var), l));
+        Divide(l, r)    : Divide(Subtract(Multiply(derivative(l, var), r), Multiply(derivative(r, var), l)), Multiply(r, r));
+
+        Negative(e)     : Negative(derivative(e, var));
+
+        Number(value)  : Number(0.0);
+        Variable(v)      : if(v == var) {
+            Number(1.0);
+            } else {
+                Number(0.0);
+            }
+    }
+}
+
+derivativeAndSimplify(exp : Expression, vars : string) -> Expression {
+    simplify(derivative(exp, vars));
+}
+
+
+printAnswer(name : string, value : Maybe<double>){
+    switch (value) {
+        Some(v) : println(name + d2s(v) + "\n");
+        None()  : println(name + "None" + "\n");
+    }
+}
+
+
+getVariables() -> Tree<string,  double> {
+	//ввести здесь параметры (Добавить в дерево )
+	tree : Tree<string,  double> = setTree(makeTree(), "x", 2.0);
+	setTree(tree, "y",  2.0);
+}
+
+
+main() {
+    // exprString = "((((5*x)*x) + (3 * x)) - 7)";//"(((104/x)+((52*2)-52)) + (1 / x))";//"(((104/2)+((52*2)-52)) - -10)"
+    exprString = "(x*(x*x))";//"(((104/x)+((52*2)-52)) + (1 / x))";//"(((104/2)+((52*2)-52)) - -10)"
+	println("Input string expression: " + exprString + "\n");
+	variables = getVariables();
+
+    ast = parsic(compilePegGrammar("#include lingo.lingo"), exprString, defaultPegActions);
+    simplified = simplify(ast);
+    derivativeExp = derivative(simplified, "x");
+    simplify = simplify(derivativeExp);
+
+	println(expressionToString(derivativeExp) + " - Derivative \n");
+	println(expressionToString(simplify) + " - simplifyDerivative\n");
+    printAnswer("Calculated derivative: ", calculate(simplify, variables));
+    quit(0);
+}

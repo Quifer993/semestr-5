@@ -1,0 +1,7 @@
+var x : int;
+var y : [int];
+{
+	x := 24 ; 
+	y := upd(y, 1, 1);
+	y := upd(y, x, (app(y, (x-1)) + app(y, (x-2))))
+}

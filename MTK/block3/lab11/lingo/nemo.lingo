@@ -1,0 +1,34 @@
+prog = ws decl*:d stat:b { NmProg(:d, :b)};
+decl = "var" ws id:v ":" ws type:t ";" ws { NmDecl(:v, :t) };
+
+type  = int | array;
+int   = "int" ws { NmIntType() };
+array = ws "[" ws type:t ws"]" ws { NmArrType(:t) };
+
+stat   = print | test | seq | choice | loop | assign | ifelse | while;
+test   = "(" ws expr:e1 cond$s ws expr:e2 ws ")" ws "?" ws { NmTest($s, :e1, :e2) };
+seq    = "{" ws stat:s1 ";" ws stat:s2 seqs*:ss "}" ws { createSeq(:s1, :s2, :ss) };
+seqs   = ";" ws stat;
+choice = "{" ws stat:s1 "U" ws stat:s2 chs*:ss "}" ws { createChoice(:s1, :s2, :ss) };
+chs    = "U" ws stat;
+loop   = "{" ws stat:b ws "}" "*" ws { NmLoop(:b) };
+
+assign = id:v ":=" ws expr:e { NmAssign(:v, :e) };
+ifelse = "if"    ws "(" ws expr:e1 cond$s ws expr:e2 ")" ws stat:s1 ws "else" ws stat:s2 ws{ createIfElse($s, :e1, :e2, :s1, :s2) };
+while  = "while" ws "(" ws expr:e1 cond$s ws expr:e2 ")" ws stat:s1 { createWhile($s, :e1, :e2, :s1) };
+
+expr   = const | bin_op | un_op | update | apply | var;
+const  = digit+ $s ws { NmInt(s2i($s)) };
+bin_op = "(" ws expr:l ("+"|"*"|"/"|"-"|"%") $s ws expr:r ")" ws { NmBinOp($s, :l, :r) };
+un_op  = "-" $s ws expr:e { NmUnOp($s, :e) };
+apply  = "app" ws "(" ws expr:a "," ws expr:i ")" ws { NmApp(:a, :i) };
+update = "upd" ws "(" ws expr:a "," ws expr:i "," ws expr:v ")" ws { NmUpd(:a, :i, :v) };
+// arrval = "," ws expr;
+
+var    = id:v { NmVar(:v) };
+cond   = "!=" | "==" | "<=" | ">=" | "<" | ">" ;
+
+id = ws letter+ $s ws { $s };
+letter = 'a'-'z';
+digit  = '0'-'9';
+ws = (' ' | '\t' | '\n' | '\r')*;

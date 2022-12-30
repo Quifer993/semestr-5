@@ -1,0 +1,211 @@
+
+Rational(numerator: int, denominator: int);
+/*
+ggcd(a:int,b:int) -> int {
+    if (b == 0) {
+        a
+    } else {
+        ggcd(b,a%b)
+    }
+} 
+
+simpl(r:Rational) -> Rational {
+    a = r.denominator;
+    b = r.numerator;
+    g = ggcd(a,b);
+    Rational(b/g,a/g)
+}
+
+multiply(l: Rational, r: Rational) -> Rational {
+	simpl(Rational(l.numerator * r.numerator, l.denominator * r.denominator));
+}
+
+divide(l: Rational, r: Rational) -> Rational {
+    
+    simpl(Rational(l.numerator * r.denominator, l.denominator * r.numerator))
+    
+}
+
+add(l: Rational, r: Rational) -> Rational {
+    if (l.denominator == r.denominator) {
+        simpl(Rational(l.numerator + r.numerator, l.denominator));
+    } else {
+		simpl(Rational(l.numerator * r.denominator + r.numerator * l.denominator, l.denominator * r.denominator));
+    }
+}
+
+subtract(l: Rational, r: Rational) -> Rational {
+    if (l.denominator == r.denominator) {
+        simpl(Rational(l.numerator - r.numerator, l.denominator));
+    } else {
+		simpl(Rational(l.numerator * r.denominator - r.numerator * l.denominator, l.denominator * r.denominator));
+    }
+}
+
+negative(r: Rational) -> Rational {
+    Rational(-r.numerator, r.denominator);
+}
+
+
+r2s(r: Rational) -> string {
+    if (r.denominator == 1) {
+        i2s(r.numerator);
+    } else {
+        concatStrings([i2s(r.numerator), "/", i2s(r.denominator)]);
+    }
+}
+
+calculate(exp : Expression, variables : Tree<string, Rational>) -> Maybe<Rational> {
+    getValue = \l, r, op -> {
+        switch(calculate(l,variables)) {
+            Some(left) :  switch(calculate(r,variables)){
+                Some(right) : op(left, right);
+                None() : None();
+            }
+            None() : None();
+        }
+    }
+    
+
+    switch(exp) {
+        Div(l, r) : getValue(l, r, \left, right -> Some(divide(left, right)));
+		Sub(l, r) : getValue(l, r, \left, right -> Some(subtract(left, right)));
+		Mult(l, r) : getValue(l, r, \left, right -> Some(multiply(left, right)));
+		Add(l, r) : getValue(l, r, \left, right -> Some(add(left, right)));
+        Number(value) : Some(Rational(value,1));
+        Neg(e) : switch(calculate(e, variables)) {
+            Some(value) : Some(negative(value));
+            None() : None();
+        }
+        Var(name) : {
+            switch(lookupTree(variables,name)) {
+                Some(val) : Some(val);
+                None(): None();
+            }
+        }
+    }
+}
+
+getVariables() -> Tree<string, Rational> {
+	tree : Tree<string, Rational> = setTree(makeTree(), "x", Rational(1, 2));
+	setTree(tree, "y", Rational(2, 1));
+}
+
+expressionToString(exp: Expression)->string{
+    switch(exp){
+        Add         (l, r) :   "(" 	+ expressionToString(l) + "+" + expressionToString(r) + ")";
+        Sub	(l, r) :   "(" 	+ expressionToString(l) + "-" + expressionToString(r) + ")";
+        Mult	(l, r) :   "(" 	+ expressionToString(l) + "*" + expressionToString(r) + ")";
+        Div		(l, r) :   "(" 	+ expressionToString(l) + "/" + expressionToString(r) + ")";
+        Neg	(v) :      "(-"   + expressionToString(v) + ")";
+
+        Number		(num) : i2s(num);
+        Var	(v): v;
+    }
+}
+
+simplify(exp : Expression) -> Expression{
+    switch (exp) {
+        Add(l, r): {
+            left = simplify(l);
+            right = simplify(r);
+            
+            if(left == Number(0) && right == Number(0)) {
+                Number(0);
+            } else if(left == Number(0)) {
+                right;
+            } else if(right == Number(0)) {
+                left;
+            } else {
+                switch(right){
+                    Neg(v) : Sub(left, v);
+                    default : Add(left, right); 
+                }
+            }
+        }
+
+        Sub(l, r): {
+            left = simplify(l);
+            right = simplify(r);
+
+            if(left == Number(0) && right == Number(0)) {
+                Number(0);
+            } else if(left == Number(0)){
+                Neg(right);
+            } else if (right == Number(0)) {
+                left;
+            } else{
+                switch(right){
+                    Neg(v) : Add(left, v);
+                    default : Sub(left, right);
+                }
+            }
+        }
+
+        Mult(l, r): {
+            left = simplify(l);
+            right = simplify(r);
+
+            if(left == Number(1)) {
+                right;
+            } else if(right == Number(1)) {
+                left;
+            } else if (left == Number(0) || right == Number(0)) {
+                Number(0);
+            } else {
+                Mult(left, right);
+            }
+        }
+
+        Div(l, r): {
+            left = simplify(l);
+            right = simplify(r);
+
+            if(right == Number(0)){
+                Div(left, right);
+            } else if((left == Number(0)) && right != Number(0)) {
+                Number(0);
+            } else if(right == Number(1)) {
+                left;
+            } else if(right == left) {
+                Number(1);
+            } else {
+                Div(left, right);
+            }
+        }    
+
+        Neg(e):{
+            simplified = simplify(e);
+
+            switch(simplified){
+                Neg(ex) : ex;
+                default : { 
+                if(simplified == Number(0)){
+                    Number(0);
+                }else{ 
+                    Neg(simplified)};
+                }
+            }
+        }
+
+        default: exp;
+    }
+}
+
+derivative(exp : Expression, var : string) -> Expression {
+    switch(exp) {
+        Add(l, r)       : Add(derivative(l, var),derivative(r, var));
+        Sub(l, r)  : Sub(derivative(l, var),derivative(r, var));
+        Mult(l, r)  : Add(Mult(derivative(l, var), r), Mult(derivative(r, var), l));
+        Div(l, r)    : Div(Sub(Mult(derivative(l, var), r), Mult(derivative(r, var), l)), Mult(r, r));
+        Neg(e)     : Neg(derivative(e, var));
+
+        Number(value)  : Number(0);
+        Var(v)      : if(v == var) {
+            Number(1);
+            } else {
+                Number(0);
+            }
+    }
+}
+*/

@@ -1,0 +1,100 @@
+import nemo/nemo_typecheck;
+import nemo/vnemo_ast;
+
+export {
+
+nm2vnm(prog : NmProg) -> VNmProg {
+	VNmProg(prog.decls, nmStat2vnmStat(prog.body));
+}
+}
+
+maxVmLabel(ss : [VNmStat]) -> int {
+	max_lab = \labs -> fold(labs, -1, max);
+	max_stat = \s -> {
+		switch (s) {
+			VNmAssign(__,__, goto):    max_lab(goto);
+			VNmIf(__,__,__, pos, neg): max(max_lab(pos), max_lab(neg));
+			VNmPrint(__, goto):        max_lab(goto);
+		}
+	}
+	fold(ss, -1, \acc, s -> max(acc, max_stat(s)))
+}
+
+addVmLabel(ss : [VNmStat], n : int) -> [VNmStat] {
+	add_lab = \labs -> fold(labs, [], \acc, l -> concat(acc, [l + n]));
+	add_stat = \s -> {
+		switch (s) {
+			VNmAssign(var, val, goto): VNmAssign(var, val, add_lab(goto));
+			VNmIf(c, l, r, pos, neg):  VNmIf(c, l, r, add_lab(pos), add_lab(neg));
+			VNmPrint(e, goto):         VNmPrint(e, add_lab(goto));
+		}
+	}
+	fold(ss, [], \acc, s -> concat(acc, [add_stat(s)]))
+}
+
+replaceVmLabel(ss : [VNmStat], n : int, m : int) -> [VNmStat] {
+	replace_lab = \labs -> fold(labs, [], \acc, l -> concat(acc, if (l == n) [m] else [l]));
+	replace_stat = \s -> {
+		switch (s) {
+			VNmAssign(var, val, goto): VNmAssign(var, val, replace_lab(goto));
+			VNmIf(c, l, r, pos, neg):  VNmIf(c, l, r, replace_lab(pos), replace_lab(neg));
+			VNmPrint(e, goto):         VNmPrint(e, replace_lab(goto));
+		}
+	}
+	fold(ss, [], \acc, s -> concat(acc, [replace_stat(s)]))
+}
+
+VNmSeqAcc(
+	stats : [[VNmStat]],
+	max_lab : int
+);
+
+VNmChioceAcc(
+	stats : [[VNmStat]],
+	starts : [int],
+	ends : [int],
+	max_lab : int
+);
+
+nmStat2vnmStat(stat : NmStat) -> [VNmStat] {
+	switch(stat) {
+		NmAssign(var, val): [VNmAssign(var, val, [1])];
+		NmPrint(e): [VNmPrint(e, [1])];
+		NmTest(c, l, r): [VNmIf(c, l, r, [1], [])];
+		NmSeq(ss): 
+			concatA(fold(ss, VNmSeqAcc([], 0), \acc, s -> {
+					vs = nmStat2vnmStat(s);
+					size = maxVmLabel(vs);
+					VNmSeqAcc(concat(acc.stats, [addVmLabel(vs, acc.max_lab)]), acc.max_lab + size);
+				}
+			).stats);
+		NmChoice(ss): {
+			choices = fold(ss, VNmChioceAcc([], [], [], 1), \acc, s -> {
+					vs = nmStat2vnmStat(s);
+					size = maxVmLabel(vs);
+					VNmChioceAcc(
+						concat(acc.stats, [addVmLabel(vs, acc.max_lab)]),
+						concat(acc.starts, [acc.max_lab]),
+						concat(acc.ends, [acc.max_lab + size]),
+						acc.max_lab + size
+					);
+				}
+			);
+			concat(
+				[VNmIf("==", NmInt(0), NmInt(0), choices.starts, [])],
+				foldi(choices.stats, [], \i, acc, s ->
+					concat(acc, replaceVmLabel(s, choices.ends[i], choices.max_lab))
+				)
+			);
+		}
+		NmLoop(b): {
+			vs = addVmLabel(nmStat2vnmStat(b), 1);
+			size = maxVmLabel(vs);
+			concat(
+				[VNmIf("==", NmInt(0), NmInt(0), [1, size], [])],
+				replaceVmLabel(vs, size, 0)
+			)
+		}
+	}
+}
+
